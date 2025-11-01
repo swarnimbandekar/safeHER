@@ -1,0 +1,87 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Add smooth transitions for modals */
+.modal-enter {
+  opacity: 0;
+  transform: scale(0.95);
+}
+
+.modal-enter-active {
+  opacity: 1;
+  transform: scale(1);
+  transition: opacity 300ms, transform 300ms;
+}
+
+.modal-exit {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.modal-exit-active {
+  opacity: 0;
+  transform: scale(0.95);
+  transition: opacity 300ms, transform 300ms;
+}
+
+/* Custom styles for safeHER */
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  background-color: #fefefe;
+  color: #333;
+}
+
+.dark body {
+  background-color: #1a1a1a;
+  color: #f5f5f5;
+}
+
+/* Pink/white color palette */
+.pink-primary {
+  background-color: #ff69b4;
+}
+
+.pink-secondary {
+  background-color: #ffc0cb;
+}
+
+.pink-accent {
+  background-color: #ffb6c1;
+}
+
+/* High contrast text */
+.high-contrast-text {
+  color: #333;
+}
+
+.dark .high-contrast-text {
+  color: #fff;
+}
+
+/* Calm pink/white palette for UI elements */
+.calm-pink-bg {
+  background-color: #fff5f7;
+}
+
+.dark .calm-pink-bg {
+  background-color: #2d2d2d;
+}
+
+.calm-pink-border {
+  border-color: #ffd6e0;
+}
+
+.dark .calm-pink-border {
+  border-color: #4a4a4a;
+}
+
+.calm-pink-text {
+  color: #ff69b4;
+}
+
+/* Enhanced focus states for accessibility */
+.focus-ring {
+  outline: 2px solid #ff69b4;
+  outline-offset: 2px;
+}
