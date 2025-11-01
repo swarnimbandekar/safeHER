@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+
 import { useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { SOSButton } from '../components/SOSButton';
@@ -22,6 +23,9 @@ export function Home() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [motionPermission, setMotionPermission] = useState<'granted' | 'denied' | 'prompt' | null>(null);
+  const sosInProgressRef = useRef(false);
+  const sosCooldownRef = useRef<number>(0);
+  const SOS_COOLDOWN_MS = 10000; // 10s cooldown to avoid rapid repeats
 
   useEffect(() => {
     checkSharingStatus();
@@ -63,6 +67,11 @@ export function Home() {
   };
 
   const handleSOS = async () => {
+    if (sosInProgressRef.current || sosLoading) return;
+    const now = Date.now();
+    if (now - sosCooldownRef.current < SOS_COOLDOWN_MS) return;
+    sosInProgressRef.current = true;
+    sosCooldownRef.current = now;
     setError('');
     setSosLoading(true);
     
@@ -108,6 +117,7 @@ export function Home() {
       setError(err.message || 'Failed to send SOS alert');
     } finally {
       setSosLoading(false);
+      sosInProgressRef.current = false;
     }
   };
 
@@ -154,7 +164,10 @@ export function Home() {
   };
 
   const handleShakeSOS = () => {
-    // Trigger the same SOS functionality as button press
+    // Respect in-progress and cooldown guards
+    if (sosInProgressRef.current || sosLoading) return;
+    const now = Date.now();
+    if (now - sosCooldownRef.current < SOS_COOLDOWN_MS) return;
     handleSOS();
   };
 

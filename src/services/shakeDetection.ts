@@ -6,6 +6,7 @@ export class ShakeDetectionService {
   private lastZ: number;
   private lastUpdate: number;
   private shakeCallback: (() => void) | null;
+  private motionHandler: (event: DeviceMotionEvent) => void;
 
   private constructor() {
     this.threshold = 15;
@@ -14,6 +15,8 @@ export class ShakeDetectionService {
     this.lastZ = 0;
     this.lastUpdate = 0;
     this.shakeCallback = null;
+    // Bind once so add/removeEventListener use the same reference
+    this.motionHandler = this.handleMotionEvent.bind(this);
   }
 
   public static getInstance(): ShakeDetectionService {
@@ -40,11 +43,13 @@ export class ShakeDetectionService {
 
   public startListening(callback: () => void): void {
     this.shakeCallback = callback;
-    window.addEventListener('devicemotion', this.handleMotionEvent.bind(this));
+    // Ensure we don't attach multiple listeners
+    this.stopListening();
+    window.addEventListener('devicemotion', this.motionHandler);
   }
 
   public stopListening(): void {
-    window.removeEventListener('devicemotion', this.handleMotionEvent.bind(this));
+    window.removeEventListener('devicemotion', this.motionHandler);
     this.shakeCallback = null;
   }
 
