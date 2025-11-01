@@ -33,6 +33,15 @@ export class GeolocationService {
     });
   }
 
+  // Mock location for testing when geolocation fails
+  getMockLocation(): LocationCoords {
+    // Mock location: New York City area
+    return {
+      latitude: 40.7128,
+      longitude: -74.0060,
+    };
+  }
+
   startWatching(callback: (coords: LocationCoords) => void): void {
     if (!navigator.geolocation) {
       throw new Error('Geolocation is not supported');

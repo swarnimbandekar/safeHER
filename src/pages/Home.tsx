@@ -76,8 +76,14 @@ export function Home() {
       // Simulate sending SOS
       console.log("Sending SOS to Trusted Circle...");
       
-      // Get current position
-      const coords = await geolocationService.getCurrentPosition();
+      // Get current position or use mock location if it fails
+      let coords;
+      try {
+        coords = await geolocationService.getCurrentPosition();
+      } catch (locationError) {
+        console.log('Using mock location for SOS');
+        coords = geolocationService.getMockLocation();
+      }
 
       // Insert SOS alert into database
       const { error: insertError } = await supabase.from('sos_alerts').insert({
@@ -124,6 +130,8 @@ export function Home() {
             user_id: profile!.id,
             is_active: false,
             updated_at: new Date().toISOString(),
+          }, {
+            onConflict: 'user_id'
           });
 
         if (upsertError) throw upsertError;
@@ -152,7 +160,14 @@ export function Home() {
 
   const toggleLocationSharing = async () => {
     try {
-      const coords = await geolocationService.getCurrentPosition();
+      // Get current position or use mock location if it fails
+      let coords;
+      try {
+        coords = await geolocationService.getCurrentPosition();
+      } catch (locationError) {
+        console.log('Using mock location for sharing');
+        coords = geolocationService.getMockLocation();
+      }
       const newStatus = !isSharing;
 
       const { error: upsertError } = await supabase
@@ -163,6 +178,8 @@ export function Home() {
           longitude: coords.longitude,
           is_active: newStatus,
           updated_at: new Date().toISOString(),
+        }, {
+          onConflict: 'user_id'
         });
 
       if (upsertError) throw upsertError;

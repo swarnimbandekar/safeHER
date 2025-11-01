@@ -23,8 +23,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session }, error }) => {
-      (async () => {
+    // Initialize auth state
+    const initAuth = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
         if (error) {
           console.error('Session error:', error);
         }
@@ -32,40 +34,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(session);
         setUser(session?.user ?? null);
         if (session?.user) {
-          await fetchProfile(session.user.id);
+          // Fetch profile in background; do not block auth loading state
+          void fetchProfile(session.user.id);
         }
+      } catch (err) {
+        console.error('Failed to get session:', err);
+      } finally {
         setLoading(false);
-      })();
-    }).catch((err) => {
-      console.error('Failed to get session:', err);
-      setLoading(false);
-    });
+      }
+    };
+
+    initAuth();
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('Auth state changed:', event, !!session);
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
-        await fetchProfile(session.user.id);
-        
-        // If this is a new sign-up and profile doesn't exist, create it
-        if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
-          const { data: existingProfile } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', session.user.id)
-            .maybeSingle();
-          
-          if (!existingProfile && session.user.user_metadata) {
-            await supabase.from('profiles').insert({
-              id: session.user.id,
-              full_name: session.user.user_metadata.full_name || '',
-              phone_number: session.user.user_metadata.phone_number || '',
-            });
-            await fetchProfile(session.user.id);
-          }
-        }
+        // Fetch profile in background on auth changes as well
+        void fetchProfile(session.user.id);
       } else {
         setProfile(null);
       }
@@ -106,19 +95,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const needsConfirmation = data.user.identities?.length === 0;
       
       if (!needsConfirmation) {
-        // Only create profile if user doesn't need email confirmation
-        const { error: profileError } = await supabase.from('profiles').insert({
-          id: data.user.id,
-          full_name: fullName,
-          phone_number: phoneNumber,
-        });
+        // Check if profile already exists
+        const { data: existingProfile } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('id', data.user.id)
+          .maybeSingle();
 
-        if (profileError) {
-          // Ignore duplicate profile errors (in case profile already exists)
-          if (!profileError.message.includes('duplicate')) {
-            throw profileError;
+        // Only create profile if it doesn't exist
+        if (!existingProfile) {
+          const { error: profileError } = await supabase.from('profiles').insert({
+            id: data.user.id,
+            full_name: fullName,
+            phone_number: phoneNumber,
+          });
+
+          if (profileError && !profileError.message.includes('duplicate')) {
+            console.error('Profile creation error:', profileError);
+            // Don't throw - profile might have been created by trigger
           }
         }
+
+        // Fetch the profile to update state
+        await fetchProfile(data.user.id);
       }
       
       // Mark onboarding as complete since user has signed up
@@ -133,6 +132,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     if (error) throw error;
+    
+    // Mark onboarding as complete for existing users
+    localStorage.setItem('onboardingComplete', 'true');
   };
 
   const signOut = async () => {

@@ -22,16 +22,16 @@ export function Onboarding() {
   useEffect(() => {
     if (user) {
       completeOnboarding();
-      navigate('/');
+      navigate('/', { replace: true });
     }
-  }, [user, navigate, completeOnboarding]);
+  }, [user]);
 
   const handleNext = () => {
     if (step < 4) {
       setStep(step + 1);
     } else {
       completeOnboarding();
-      navigate('/');
+      navigate('/', { replace: true });
     }
   };
 
@@ -52,9 +52,12 @@ export function Onboarding() {
         formData.fullName,
         formData.phoneNumber
       );
+      // Wait a bit for profile to be created
+      await new Promise(resolve => setTimeout(resolve, 500));
       completeOnboarding();
-      navigate('/');
+      navigate('/', { replace: true });
     } catch (err: any) {
+      console.error('Signup error:', err);
       setError(err.message || 'Failed to create account');
     } finally {
       setLoading(false);

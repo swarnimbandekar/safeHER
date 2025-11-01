@@ -76,11 +76,7 @@ function App() {
             <Routes>
               <Route
                 path="/onboarding"
-                element={
-                  <PublicRoute>
-                    <Onboarding />
-                  </PublicRoute>
-                }
+                element={<Onboarding />}
               />
               <Route
                 path="/signin"
