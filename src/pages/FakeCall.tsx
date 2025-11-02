@@ -46,8 +46,8 @@ export function FakeCall() {
                 <Phone className="w-16 h-16 text-white" />
               </div>
               <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Incoming Call</h2>
-              <p className="text-gray-600 dark:text-gray-400">Mom</p>
-              <p className="text-gray-600 dark:text-gray-400">+1 234 567 8900</p>
+              <p className="text-gray-600 dark:text-gray-400">Dad</p>
+              <p className="text-gray-600 dark:text-gray-400">+91 9988776657</p>
             </div>
 
             <div className="flex gap-8">
@@ -71,7 +71,7 @@ export function FakeCall() {
               <div className="w-24 h-24 bg-green-500 rounded-full flex items-center justify-center mb-6 mx-auto">
                 <Phone className="w-12 h-12 text-white" />
               </div>
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Mom</h2>
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Dad</h2>
               <p className="text-gray-600 dark:text-gray-400">{formatTime(callTimer)}</p>
             </div>
 

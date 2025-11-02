@@ -97,25 +97,53 @@ class RoutingService {
     end: RouteCoordinate,
     alternatives: number = 3
   ): Promise<Route[]> {
+    // Validate coordinates before calling ORS
+    const isValid = (c: RouteCoordinate) =>
+      Number.isFinite(c.lat) && Number.isFinite(c.lon) && Math.abs(c.lat) <= 90 && Math.abs(c.lon) <= 180;
+    if (!isValid(start) || !isValid(end)) {
+      console.error('Invalid coordinates for routing:', { start, end });
+      throw new Error('Invalid coordinates. Please pick valid points on the map.');
+    }
+    if (start.lat === end.lat && start.lon === end.lon) {
+      throw new Error('Start and destination are the same location.');
+    }
+    const buildOptions = (withAlternatives: boolean) => ({
+      coordinates: [
+        [start.lon, start.lat],
+        [end.lon, end.lat],
+      ],
+      profile: 'foot-walking',
+      extra_info: ['waytype', 'steepness'],
+      format: 'json',
+      geometry_format: 'geojson',
+      instructions: false,
+      ...(withAlternatives
+        ? {
+            alternative_routes: {
+              target_count: alternatives,
+              weight_factor: 1.4,
+              share_factor: 0.6,
+            },
+          }
+        : {}),
+    });
+
     try {
-      const response = await this.client.calculate({
-        coordinates: [
-          [start.lon, start.lat],
-          [end.lon, end.lat],
-        ],
-        profile: 'foot-walking',
-        extra_info: ['waytype', 'steepness'],
-        format: 'json',
-        alternative_routes: {
-          target_count: alternatives,
-          weight_factor: 1.4,
-          share_factor: 0.6,
-        },
-      });
+      // First attempt: with alternative routes
+      let response = await this.client.calculate(buildOptions(true));
+
+      // If empty response, retry without alternatives
+      if (!response || !Array.isArray(response.routes) || response.routes.length === 0) {
+        response = await this.client.calculate(buildOptions(false));
+      }
+
+      if (!response || !Array.isArray(response.routes) || response.routes.length === 0) {
+        throw new Error('No routes returned from routing service');
+      }
 
       const routes: Route[] = response.routes.map((route: any, index: number) => ({
         id: index + 1,
-        coordinates: route.geometry.coordinates.map((coord: number[]) => [
+        coordinates: (route.geometry?.coordinates || []).map((coord: number[]) => [
           coord[1],
           coord[0],
         ] as [number, number]),
@@ -129,7 +157,83 @@ class RoutingService {
         safetyScore: this.calculateSafetyScore(route),
       }));
     } catch (error: any) {
-      console.error('Error fetching routes:', error);
+      // If ORS returns 400, try a minimal request as a fallback
+      const status = error?.response?.status;
+      if (status === 400) {
+        try {
+          const minimalOptions = {
+            coordinates: [
+              [start.lon, start.lat],
+              [end.lon, end.lat],
+            ],
+            profile: 'foot-walking',
+            format: 'json',
+            geometry_format: 'geojson',
+            instructions: false,
+          } as const;
+          console.warn('ORS 400: retrying with minimal options', minimalOptions);
+          const response = await this.client.calculate(minimalOptions);
+          if (!response || !Array.isArray(response.routes) || response.routes.length === 0) {
+            throw new Error('No routes returned from routing service');
+          }
+          const routes: Route[] = response.routes.map((route: any, index: number) => ({
+            id: index + 1,
+            coordinates: (route.geometry?.coordinates || []).map((coord: number[]) => [
+              coord[1],
+              coord[0],
+            ] as [number, number]),
+            distance: route.summary.distance,
+            duration: route.summary.duration,
+            segments: route.segments || [],
+          }));
+          return routes.map((route) => ({
+            ...route,
+            safetyScore: this.calculateSafetyScore(route),
+          }));
+        } catch (fallbackErr: any) {
+          const details = fallbackErr?.response?.data || fallbackErr?.message || fallbackErr;
+          console.warn('Foot-walking minimal attempt failed. Trying driving-car.', { start, end, details });
+          // Final fallback: try driving-car minimal profile
+          try {
+            const drivingOptions = {
+              coordinates: [
+                [start.lon, start.lat],
+                [end.lon, end.lat],
+              ],
+              profile: 'driving-car',
+              format: 'json',
+              geometry_format: 'geojson',
+              instructions: false,
+            } as const;
+            console.warn('ORS fallback: driving-car minimal options', drivingOptions);
+            const response2 = await this.client.calculate(drivingOptions);
+            if (!response2 || !Array.isArray(response2.routes) || response2.routes.length === 0) {
+              throw new Error('No routes returned from routing service');
+            }
+            const routes2: Route[] = response2.routes.map((route: any, index: number) => ({
+              id: index + 1,
+              coordinates: (route.geometry?.coordinates || []).map((coord: number[]) => [
+                coord[1],
+                coord[0],
+              ] as [number, number]),
+              distance: route.summary.distance,
+              duration: route.summary.duration,
+              segments: route.segments || [],
+            }));
+            return routes2.map((route) => ({
+              ...route,
+              safetyScore: this.calculateSafetyScore(route),
+            }));
+          } catch (drivingErr: any) {
+            const dDetails = drivingErr?.response?.data || drivingErr?.message || drivingErr;
+            console.error('Driving-car fallback failed:', dDetails);
+            throw new Error('Failed to fetch routes. Please try again.');
+          }
+        }
+      }
+
+      const details = error?.response?.data || error?.message || error;
+      console.error('Error fetching routes:', details, { start, end });
       throw new Error('Failed to fetch routes. Please try again.');
     }
   }
