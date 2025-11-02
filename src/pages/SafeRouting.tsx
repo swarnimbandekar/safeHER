@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline, Circle, useMap } from 'react-leaflet';
 import { Layout } from '../components/Layout';
 import { routingService, Route, UNSAFE_ZONES, RouteCoordinate } from '../services/routing';
@@ -18,6 +18,11 @@ import {
   Play,
   Pause,
   AlertCircle,
+  Sparkles,
+  ChevronDown,
+  ChevronUp,
+  CheckCircle,
+  PartyPopper,
 } from 'lucide-react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -83,16 +88,54 @@ export function SafeRouting() {
   const [isSimulating, setIsSimulating] = useState(false);
   const [deviationAlert, setDeviationAlert] = useState<RouteDeviation | null>(null);
   const [userPosition, setUserPosition] = useState<[number, number] | null>(null);
+  const [animationProgress, setAnimationProgress] = useState(0);
+  const [isAnimating, setIsAnimating] = useState(false);
+  const animationRef = useRef<number>();
+  const [showRoutePanel, setShowRoutePanel] = useState(true);
+  const [showArrivalModal, setShowArrivalModal] = useState(false);
 
   useEffect(() => {
     getUserLocation();
     fetchSafeZones();
     
-    // Cleanup simulation on unmount
+    // Cleanup simulation and animation on unmount
     return () => {
       routeSimulationService.stopSimulation();
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
     };
   }, []);
+
+  // Animation effect (just for visual demo)
+  useEffect(() => {
+    if (isAnimating && selectedRoute) {
+      const duration = 3000; // 3 seconds for full animation
+      const startTime = Date.now();
+
+      const animate = () => {
+        const elapsed = Date.now() - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        
+        setAnimationProgress(progress);
+
+        if (progress < 1) {
+          animationRef.current = requestAnimationFrame(animate);
+        } else {
+          setIsAnimating(false);
+          // Don't show arrival modal here - only show when stopping simulation
+        }
+      };
+
+      animationRef.current = requestAnimationFrame(animate);
+
+      return () => {
+        if (animationRef.current) {
+          cancelAnimationFrame(animationRef.current);
+        }
+      };
+    }
+  }, [isAnimating, selectedRoute]);
 
   const getUserLocation = async () => {
     try {
@@ -277,6 +320,101 @@ export function SafeRouting() {
     routeSimulationService.stopSimulation();
     setIsSimulating(false);
     setDeviationAlert(null);
+    
+    // Show arrival modal when user stops the simulation
+    setTimeout(() => {
+      setShowArrivalModal(true);
+    }, 300);
+  };
+
+  const loadDemoRoute = async () => {
+    // Reset modal state
+    setShowArrivalModal(false);
+    
+    // Mock locations: Times Square to Central Park
+    const demoFrom = { lat: 40.7580, lon: -73.9855 };
+    const demoTo = { lat: 40.7829, lon: -73.9654 };
+
+    setFromLocation('Times Square, New York');
+    setToLocation('Central Park, New York');
+    setFromCoords(demoFrom);
+    setToCoords(demoTo);
+
+    setMapCenter([40.7704, -73.9754]);
+    setMapZoom(14);
+
+    // Create mock routes
+    const mockRoutes: Route[] = [
+      {
+        id: 1,
+        coordinates: [
+          [40.7580, -73.9855],
+          [40.7600, -73.9835],
+          [40.7630, -73.9820],
+          [40.7660, -73.9800],
+          [40.7690, -73.9780],
+          [40.7720, -73.9760],
+          [40.7750, -73.9730],
+          [40.7780, -73.9700],
+          [40.7810, -73.9670],
+          [40.7829, -73.9654],
+        ],
+        distance: 2800,
+        duration: 840, // 14 minutes
+        safetyScore: 92,
+      },
+      {
+        id: 2,
+        coordinates: [
+          [40.7580, -73.9855],
+          [40.7595, -73.9830],
+          [40.7620, -73.9810],
+          [40.7645, -73.9785],
+          [40.7680, -73.9760],
+          [40.7710, -73.9735],
+          [40.7745, -73.9705],
+          [40.7775, -73.9680],
+          [40.7805, -73.9665],
+          [40.7829, -73.9654],
+        ],
+        distance: 2500,
+        duration: 720, // 12 minutes  
+        safetyScore: 68,
+      },
+      {
+        id: 3,
+        coordinates: [
+          [40.7580, -73.9855],
+          [40.7610, -73.9840],
+          [40.7640, -73.9825],
+          [40.7670, -73.9805],
+          [40.7700, -73.9785],
+          [40.7730, -73.9755],
+          [40.7760, -73.9720],
+          [40.7790, -73.9690],
+          [40.7815, -73.9665],
+          [40.7829, -73.9654],
+        ],
+        distance: 2650,
+        duration: 780, // 13 minutes
+        safetyScore: 85,
+      },
+    ];
+
+    setRoutes(mockRoutes);
+    
+    // Select safest route by default
+    const bestRoute = mockRoutes.reduce((prev, current) =>
+      (current.safetyScore || 0) > (prev.safetyScore || 0) ? current : prev
+    );
+    
+    setSelectedRoute(bestRoute);
+    
+    // Start animation after a brief delay
+    setTimeout(() => {
+      setAnimationProgress(0);
+      setIsAnimating(true);
+    }, 500);
   };
 
   return (
@@ -388,6 +526,14 @@ export function SafeRouting() {
 
           <div className="flex flex-wrap gap-3">
             <button
+              onClick={loadDemoRoute}
+              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white rounded-lg transition-all transform hover:scale-105 shadow-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2"
+            >
+              <Sparkles className="w-4 h-4" />
+              Safest Route
+            </button>
+            
+            <button
               onClick={useCurrentLocation}
               className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-white rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2"
             >
@@ -439,29 +585,42 @@ export function SafeRouting() {
         </div>
 
         {routes.length > 0 && (
-          <div className="bg-white dark:bg-gray-800 border-b calm-pink-border p-4">
-            <div className="flex justify-between items-center mb-3">
-              <h3 className="font-semibold text-gray-900 dark:text-white">Available Routes</h3>
-              {!isSimulating ? (
-                <button
-                  onClick={startRouteSimulation}
-                  className="flex items-center gap-1 text-sm bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
-                >
-                  <Play className="w-4 h-4" />
-                  Start SafeRide
-                </button>
-              ) : (
-                <button
-                  onClick={stopRouteSimulation}
-                  className="flex items-center gap-1 text-sm bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
-                >
-                  <Pause className="w-4 h-4" />
-                  Stop Simulation
-                </button>
-              )}
+          <div className="bg-white dark:bg-gray-800 border-b calm-pink-border">
+            <div className="flex justify-between items-center p-4 cursor-pointer" onClick={() => setShowRoutePanel(!showRoutePanel)}>
+              <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                Available Routes ({routes.length})
+                {showRoutePanel ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+              </h3>
+              <div className="flex items-center gap-2">
+                {!isSimulating ? (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      startRouteSimulation();
+                    }}
+                    className="flex items-center gap-1 text-sm bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+                  >
+                    <Play className="w-4 h-4" />
+                    Start SafeRide
+                  </button>
+                ) : (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      stopRouteSimulation();
+                    }}
+                    className="flex items-center gap-1 text-sm bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+                  >
+                    <Pause className="w-4 h-4" />
+                    End SafeRide
+                  </button>
+                )}
+              </div>
             </div>
-            <div className="space-y-3">
-              {routes.map((route) => (
+            
+            {showRoutePanel && (
+              <div className="p-4 pt-0 space-y-3 max-h-64 overflow-y-auto">
+                {routes.map((route) => (
                 <button
                   key={route.id}
                   onClick={() => setSelectedRoute(route)}
@@ -511,8 +670,9 @@ export function SafeRouting() {
                     </div>
                   </div>
                 </button>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -563,11 +723,42 @@ export function SafeRouting() {
             )}
 
             {selectedRoute && (
-              <Polyline
-                positions={selectedRoute.coordinates.map((c) => [c[0], c[1]])}
-                color="#10B981"
-                weight={6}
-              />
+              <>
+                {/* Animated trail effect */}
+                {isAnimating && animationProgress > 0 && (() => {
+                  const totalPoints = selectedRoute.coordinates.length;
+                  const visiblePoints = Math.ceil(totalPoints * animationProgress);
+                  const visibleCoords = selectedRoute.coordinates.slice(0, visiblePoints);
+                  
+                  return (
+                    <>
+                      {/* Main animated path */}
+                      <Polyline
+                        positions={visibleCoords.map((c) => [c[0], c[1]])}
+                        color="#10B981"
+                        weight={8}
+                        className="animate-pulse"
+                      />
+                      {/* Glowing effect */}
+                      <Polyline
+                        positions={visibleCoords.map((c) => [c[0], c[1]])}
+                        color="#34D399"
+                        weight={12}
+                        opacity={0.3}
+                      />
+                    </>
+                  );
+                })()}
+                
+                {/* Full route (shown after animation or when not animating) */}
+                {!isAnimating && (
+                  <Polyline
+                    positions={selectedRoute.coordinates.map((c) => [c[0], c[1]])}
+                    color="#10B981"
+                    weight={6}
+                  />
+                )}
+              </>
             )}
 
             {routes.map((route) => (
@@ -636,6 +827,81 @@ export function SafeRouting() {
             ))}
           </MapContainer>
         </div>
+
+        {/* Arrival Success Modal */}
+        {showArrivalModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[2000] animate-fadeIn">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-md w-full shadow-2xl transform transition-all scale-100 animate-scaleIn">
+              <div className="p-8 text-center">
+                {/* Success Icon with Animation */}
+                <div className="relative inline-flex items-center justify-center mb-6">
+                  <div className="absolute inset-0 bg-green-500 rounded-full animate-ping opacity-20"></div>
+                  <div className="relative bg-gradient-to-br from-green-400 to-green-600 rounded-full p-6">
+                    <CheckCircle className="w-16 h-16 text-white" />
+                  </div>
+                </div>
+
+                {/* Success Message */}
+                <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2 flex items-center justify-center gap-2">
+                  Arrived Safely!
+                  <PartyPopper className="w-8 h-8 text-yellow-500" />
+                </h2>
+                
+                <p className="text-gray-600 dark:text-gray-400 mb-6">
+                  You've reached your destination safely. Great job!
+                </p>
+
+                {/* Route Stats */}
+                {selectedRoute && (
+                  <div className="bg-green-50 dark:bg-green-900/20 rounded-xl p-4 mb-6 space-y-2">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-600 dark:text-gray-400 flex items-center gap-2">
+                        <TrendingUp className="w-4 h-4" />
+                        Distance
+                      </span>
+                      <span className="font-semibold text-gray-900 dark:text-white">
+                        {routingService.formatDistance(selectedRoute.distance)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-600 dark:text-gray-400 flex items-center gap-2">
+                        <Clock className="w-4 h-4" />
+                        Duration
+                      </span>
+                      <span className="font-semibold text-gray-900 dark:text-white">
+                        {routingService.formatDuration(selectedRoute.duration)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-600 dark:text-gray-400 flex items-center gap-2">
+                        <Shield className="w-4 h-4" />
+                        Safety Score
+                      </span>
+                      <span className="font-semibold text-green-600 dark:text-green-400">
+                        {selectedRoute.safetyScore}/100
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Motivational Message */}
+                <div className="bg-pink-50 dark:bg-pink-900/20 rounded-xl p-4 mb-6">
+                  <p className="text-sm text-pink-700 dark:text-pink-300 font-medium">
+                    💪 You chose the {routeMode === 'safest' ? 'safest' : 'shortest'} route and arrived safely!
+                  </p>
+                </div>
+
+                {/* Action Button */}
+                <button
+                  onClick={() => setShowArrivalModal(false)}
+                  className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-semibold py-3 px-6 rounded-lg transition-all transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+                >
+                  Continue
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </Layout>
   );
