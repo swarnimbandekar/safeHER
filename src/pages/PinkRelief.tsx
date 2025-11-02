@@ -1,12 +1,100 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Layout } from '../components/Layout';
-import { Droplets, Heart, Smile, Frown, Meh } from 'lucide-react';
+import { Droplets, Heart, Smile, Frown, Meh, Calendar, TrendingUp, Moon, Sun, Sparkles, AlertCircle } from 'lucide-react';
+
+interface CycleData {
+  lastPeriodDate: Date | null;
+  cycleLength: number;
+  periodLength: number;
+}
 
 export function PinkRelief() {
-  const [activeTab, setActiveTab] = useState<'tracker' | 'tips'>('tracker');
+  const [activeTab, setActiveTab] = useState<'tracker' | 'predictor' | 'tips'>('predictor');
   const [cycleDay, setCycleDay] = useState(14);
   const [symptoms, setSymptoms] = useState<string[]>([]);
   const [mood, setMood] = useState<'happy' | 'neutral' | 'sad'>('happy');
+  
+  // Cycle predictor state
+  const [cycleData, setCycleData] = useState<CycleData>(() => {
+    const saved = localStorage.getItem('cycleData');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      return {
+        ...parsed,
+        lastPeriodDate: parsed.lastPeriodDate ? new Date(parsed.lastPeriodDate) : null,
+      };
+    }
+    return {
+      lastPeriodDate: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000), // 14 days ago
+      cycleLength: 28,
+      periodLength: 5,
+    };
+  });
+
+  useEffect(() => {
+    localStorage.setItem('cycleData', JSON.stringify(cycleData));
+  }, [cycleData]);
+
+  const calculateCycleInfo = () => {
+    if (!cycleData.lastPeriodDate) return null;
+
+    const today = new Date();
+    const lastPeriod = new Date(cycleData.lastPeriodDate);
+    const daysSinceLastPeriod = Math.floor((today.getTime() - lastPeriod.getTime()) / (1000 * 60 * 60 * 24));
+    const currentDay = (daysSinceLastPeriod % cycleData.cycleLength) + 1;
+    
+    const nextPeriodDate = new Date(lastPeriod);
+    nextPeriodDate.setDate(lastPeriod.getDate() + cycleData.cycleLength);
+    while (nextPeriodDate < today) {
+      nextPeriodDate.setDate(nextPeriodDate.getDate() + cycleData.cycleLength);
+    }
+    
+    const daysUntilNextPeriod = Math.floor((nextPeriodDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    
+    const ovulationDay = Math.floor(cycleData.cycleLength / 2);
+    const daysUntilOvulation = ovulationDay - currentDay;
+    const ovulationDate = new Date(lastPeriod);
+    ovulationDate.setDate(lastPeriod.getDate() + ovulationDay);
+    while (ovulationDate < today) {
+      ovulationDate.setDate(ovulationDate.getDate() + cycleData.cycleLength);
+    }
+
+    let phase = 'Menstrual';
+    let phaseColor = 'text-red-500';
+    let phaseBg = 'bg-red-50 dark:bg-red-900/20';
+    
+    if (currentDay <= cycleData.periodLength) {
+      phase = 'Menstrual Phase';
+      phaseColor = 'text-red-500';
+      phaseBg = 'bg-red-50 dark:bg-red-900/20';
+    } else if (currentDay <= ovulationDay - 3) {
+      phase = 'Follicular Phase';
+      phaseColor = 'text-green-500';
+      phaseBg = 'bg-green-50 dark:bg-green-900/20';
+    } else if (currentDay <= ovulationDay + 3) {
+      phase = 'Ovulation Phase';
+      phaseColor = 'text-yellow-500';
+      phaseBg = 'bg-yellow-50 dark:bg-yellow-900/20';
+    } else {
+      phase = 'Luteal Phase';
+      phaseColor = 'text-purple-500';
+      phaseBg = 'bg-purple-50 dark:bg-purple-900/20';
+    }
+
+    return {
+      currentDay,
+      daysUntilNextPeriod,
+      nextPeriodDate,
+      ovulationDate,
+      daysUntilOvulation,
+      phase,
+      phaseColor,
+      phaseBg,
+      progressPercentage: (currentDay / cycleData.cycleLength) * 100,
+    };
+  };
+
+  const cycleInfo = calculateCycleInfo();
 
   const availableSymptoms = [
     'Cramps',
@@ -27,23 +115,70 @@ export function PinkRelief() {
     }
   };
 
+  // Circular progress component
+  const CircularProgress = ({ percentage, size = 200, strokeWidth = 12, color = '#ec4899' }: { percentage: number; size?: number; strokeWidth?: number; color?: string }) => {
+    const radius = (size - strokeWidth) / 2;
+    const circumference = radius * 2 * Math.PI;
+    const offset = circumference - (percentage / 100) * circumference;
+
+    return (
+      <div className="relative" style={{ width: size, height: size }}>
+        <svg width={size} height={size} className="transform -rotate-90">
+          {/* Background circle */}
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            stroke="currentColor"
+            strokeWidth={strokeWidth}
+            fill="none"
+            className="text-gray-200 dark:text-gray-700"
+          />
+          {/* Progress circle */}
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            stroke={color}
+            strokeWidth={strokeWidth}
+            fill="none"
+            strokeDasharray={circumference}
+            strokeDashoffset={offset}
+            strokeLinecap="round"
+            className="transition-all duration-500 ease-out"
+          />
+        </svg>
+      </div>
+    );
+  };
+
   return (
     <Layout title="Pink Relief">
       <div className="px-4 py-6">
-        <div className="flex gap-2 mb-6">
+        <div className="flex gap-2 mb-6 overflow-x-auto">
+          <button
+            onClick={() => setActiveTab('predictor')}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors whitespace-nowrap ${
+              activeTab === 'predictor'
+                ? 'bg-pink-500 text-white'
+                : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+            }`}
+          >
+            Cycle Predictor
+          </button>
           <button
             onClick={() => setActiveTab('tracker')}
-            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+            className={`px-4 py-2 rounded-lg font-medium transition-colors whitespace-nowrap ${
               activeTab === 'tracker'
                 ? 'bg-pink-500 text-white'
                 : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
             }`}
           >
-            Period Tracker
+            Daily Tracker
           </button>
           <button
             onClick={() => setActiveTab('tips')}
-            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+            className={`px-4 py-2 rounded-lg font-medium transition-colors whitespace-nowrap ${
               activeTab === 'tips'
                 ? 'bg-pink-500 text-white'
                 : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
@@ -53,7 +188,213 @@ export function PinkRelief() {
           </button>
         </div>
 
-        {activeTab === 'tracker' ? (
+        {activeTab === 'predictor' ? (
+          <div className="space-y-6">
+            {cycleInfo && (
+              <>
+                {/* Main Circular Progress */}
+                <div className="bg-gradient-to-br from-pink-50 to-rose-50 dark:from-gray-800 dark:to-gray-900 rounded-2xl p-8 shadow-lg border border-pink-200 dark:border-pink-900">
+                  <div className="flex flex-col items-center">
+                    <div className="relative">
+                      <CircularProgress 
+                        percentage={cycleInfo.progressPercentage} 
+                        size={240}
+                        strokeWidth={16}
+                      />
+                      <div className="absolute inset-0 flex flex-col items-center justify-center">
+                        <p className="text-5xl font-bold text-gray-900 dark:text-white">
+                          {cycleInfo.currentDay}
+                        </p>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Day of Cycle</p>
+                        <p className={`text-xs font-medium mt-2 ${cycleInfo.phaseColor}`}>
+                          {cycleInfo.phase}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="mt-6 w-full">
+                      <div className={`${cycleInfo.phaseBg} rounded-xl p-4 text-center`}>
+                        <Sparkles className={`w-6 h-6 ${cycleInfo.phaseColor} mx-auto mb-2`} />
+                        <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                          You're in the {cycleInfo.phase}
+                        </p>
+                        <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                          {cycleInfo.phase === 'Menstrual Phase' && 'Stay hydrated and rest well'}
+                          {cycleInfo.phase === 'Follicular Phase' && 'Energy levels are rising!'}
+                          {cycleInfo.phase === 'Ovulation Phase' && 'Peak fertility window'}
+                          {cycleInfo.phase === 'Luteal Phase' && 'Take it easy and practice self-care'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Predictions Grid */}
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Next Period */}
+                  <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-md border border-gray-200 dark:border-gray-700">
+                    <div className="flex flex-col items-center">
+                      <div className="relative mb-4">
+                        <CircularProgress 
+                          percentage={(cycleInfo.daysUntilNextPeriod / cycleData.cycleLength) * 100}
+                          size={120}
+                          strokeWidth={10}
+                          color="#ef4444"
+                        />
+                        <div className="absolute inset-0 flex flex-col items-center justify-center">
+                          <Calendar className="w-6 h-6 text-red-500 mb-1" />
+                          <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                            {cycleInfo.daysUntilNextPeriod}
+                          </p>
+                        </div>
+                      </div>
+                      <p className="text-xs font-medium text-gray-600 dark:text-gray-400 text-center">
+                        Days Until Period
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                        {cycleInfo.nextPeriodDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Ovulation */}
+                  <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-md border border-gray-200 dark:border-gray-700">
+                    <div className="flex flex-col items-center">
+                      <div className="relative mb-4">
+                        <CircularProgress 
+                          percentage={cycleInfo.daysUntilOvulation > 0 ? ((cycleData.cycleLength / 2 - cycleInfo.daysUntilOvulation) / (cycleData.cycleLength / 2)) * 100 : 100}
+                          size={120}
+                          strokeWidth={10}
+                          color="#eab308"
+                        />
+                        <div className="absolute inset-0 flex flex-col items-center justify-center">
+                          <Sun className="w-6 h-6 text-yellow-500 mb-1" />
+                          <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                            {cycleInfo.daysUntilOvulation > 0 ? cycleInfo.daysUntilOvulation : '~'}
+                          </p>
+                        </div>
+                      </div>
+                      <p className="text-xs font-medium text-gray-600 dark:text-gray-400 text-center">
+                        {cycleInfo.daysUntilOvulation > 0 ? 'Days to Ovulation' : 'Ovulation Period'}
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                        {cycleInfo.ovulationDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Cycle Settings */}
+                <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-md border border-gray-200 dark:border-gray-700">
+                  <h3 className="font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                    <TrendingUp className="w-5 h-5 text-pink-500" />
+                    Cycle Settings
+                  </h3>
+                  
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Last Period Start Date
+                      </label>
+                      <input
+                        type="date"
+                        value={cycleData.lastPeriodDate?.toISOString().split('T')[0]}
+                        onChange={(e) => setCycleData({ ...cycleData, lastPeriodDate: new Date(e.target.value) })}
+                        className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Average Cycle Length: {cycleData.cycleLength} days
+                      </label>
+                      <input
+                        type="range"
+                        min="21"
+                        max="35"
+                        value={cycleData.cycleLength}
+                        onChange={(e) => setCycleData({ ...cycleData, cycleLength: parseInt(e.target.value) })}
+                        className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-pink-500"
+                      />
+                      <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        <span>21 days</span>
+                        <span>35 days</span>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Period Duration: {cycleData.periodLength} days
+                      </label>
+                      <input
+                        type="range"
+                        min="3"
+                        max="7"
+                        value={cycleData.periodLength}
+                        onChange={(e) => setCycleData({ ...cycleData, periodLength: parseInt(e.target.value) })}
+                        className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-pink-500"
+                      />
+                      <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        <span>3 days</span>
+                        <span>7 days</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Phase Information */}
+                <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-md border border-gray-200 dark:border-gray-700">
+                  <h3 className="font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                    <Moon className="w-5 h-5 text-pink-500" />
+                    Understanding Your Cycle
+                  </h3>
+                  
+                  <div className="space-y-3">
+                    <div className="flex items-start gap-3 p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
+                      <Droplets className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900 dark:text-white">Menstrual Phase</p>
+                        <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                          Days 1-{cycleData.periodLength}: Your period. Rest and stay hydrated.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                      <TrendingUp className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900 dark:text-white">Follicular Phase</p>
+                        <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                          Days {cycleData.periodLength + 1}-{Math.floor(cycleData.cycleLength / 2) - 3}: Energy rises, feel your best!
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-3 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
+                      <Sun className="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900 dark:text-white">Ovulation Phase</p>
+                        <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                          Around day {Math.floor(cycleData.cycleLength / 2)}: Peak fertility window.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-3 p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
+                      <Moon className="w-5 h-5 text-purple-500 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900 dark:text-white">Luteal Phase</p>
+                        <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                          Days {Math.floor(cycleData.cycleLength / 2) + 4}-{cycleData.cycleLength}: PMS may occur. Practice self-care.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        ) : activeTab === 'tracker' ? (
           <div className="space-y-6">
             <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
               <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Cycle Day {cycleDay}</h2>
