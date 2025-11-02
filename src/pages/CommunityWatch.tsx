@@ -4,7 +4,7 @@ import { Layout } from '../components/Layout';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { geolocationService } from '../services/geolocation';
-import { MapPin, Users, AlertTriangle, Send, Map, MessageCircle, Image as ImageIcon, MapPinned } from 'lucide-react';
+import { MapPin, Users, AlertTriangle, Send, Map, MessageCircle, MapPinned } from 'lucide-react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -299,7 +299,7 @@ export function CommunityWatch() {
         {activeTab === 'chat' && (
           <div className="flex-1 flex flex-col bg-gray-50 dark:bg-gray-900">
             {/* Messages Container */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            <div className="flex-1 overflow-y-auto p-4 pb-28 space-y-4">
               {loadingMessages ? (
                 <div className="flex items-center justify-center h-full">
                   <div className="text-center">
@@ -381,8 +381,11 @@ export function CommunityWatch() {
               )}
             </div>
 
-            {/* Message Input */}
-            <div className="p-4 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
+            {/* Message Input - sticky above bottom nav with safe-area padding */}
+            <div
+              className="p-4 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 sticky bottom-0 z-50"
+              style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))' }}
+            >
               <div className="flex items-end gap-2">
                 <button
                   onClick={handleShareLocation}
